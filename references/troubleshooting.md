@@ -24,7 +24,9 @@
 
 - When the user explicitly requests a subagent or delegation, call `spawn_agent` with `agent_type = "CustomAgent"` and `fork_turns = "none"`.
 - Do not select a model or reasoning effort directly; the `CustomAgent` role owns them.
-- Do not fall back to `worker` or another standard agent unless the user explicitly authorizes it.
+- Do not fall back to `worker` or another standard subagent unless the user explicitly authorizes it.
+- For each distinct delegated task, track CustomAgent attempt failures, parent redirects, and review rejections from zero. If any count reaches five, do not request a sixth revision; the parent agent must implement and verify that task directly.
+- Rephrasing or retrying the same acceptance goal does not reset those counts. Reset all three only for a genuinely new task, which should again start with `CustomAgent`.
 ```
 
 更新后必须打开新任务。旧任务不会动态采用新指令。

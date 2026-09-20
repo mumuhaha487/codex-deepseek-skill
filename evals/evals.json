@@ -49,6 +49,27 @@
       "expected_output": "把一次性调用与持久配置修改区分开。若已有可用 DeepSeek CustomAgent，只调用而不改配置；若当前角色是其他模型，说明不匹配，但不得据此修改 CustomAgent.toml，并询问用户是否另行发起持久变更流程。",
       "files": [],
       "name": "一次调用不等于持久切换"
+    },
+    {
+      "id": 8,
+      "prompt": "同一个委派任务的 CustomAgent 已经连续给了 4 次未通过审核的补丁。第 5 次补丁仍然没有通过测试，请继续处理。",
+      "expected_output": "记录第 5 次 review_rejection 后立即停止该任务的子智能体修订，不发起第 6 次调用或索要第 6 版补丁；由主 Agent 直接编写、测试并完成同一任务。说明这是任务级强制接管，不是切换其他子 Agent，也不修改 CustomAgent 持久配置。",
+      "files": [],
+      "name": "第五次失败后主 Agent 接管"
+    },
+    {
+      "id": 9,
+      "prompt": "上一个子任务在第五次失败后已由主智能体完成。现在开始一个范围和验收标准都不同的新子任务。",
+      "expected_output": "将新任务的 attempt_failures、parent_redirects 和 review_rejections 全部重置为 0，并按正常流程重新优先调用 CustomAgent；上一个任务的计数不会带入新任务。",
+      "files": [],
+      "name": "新任务重置失败预算"
+    },
+    {
+      "id": 10,
+      "prompt": "CustomAgent 在这个任务已经失败 5 次。我换一种提示词描述同一个验收目标，你再让它试一次。",
+      "expected_output": "识别为同一任务，改写措辞不能重置计数；拒绝发起第 6 次 CustomAgent 修订，由主 Agent 直接实现并验证。",
+      "files": [],
+      "name": "同一任务改写不重置"
     }
   ]
 }
