@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id": "codex-custom-subagent-model",
+  "label": "子代理模型",
+  "credential": "codex-custom-subagent/setup/model",
+  "ui": {
+    "title": "配置 deepseek 子代理",
+    "placeholder": "例如 deepseek-v4.1-flash",
+    "inputType": "text",
+    "saveLabel": "更新"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id": "codex-custom-subagent-vision",
+  "label": "支持识图",
+  "credential": "codex-custom-subagent/setup/vision",
+  "ui": {
+    "title": "配置 deepseek 子代理",
+    "inputType": "select",
+    "options": ["yes", "no"],
+    "saveLabel": "更新"
+  }
+}

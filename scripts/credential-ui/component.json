@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "files": {
+    "README.md": "0bc7d6838f95161b1af96ef96a30d42c447672d69521b5d42fa813f950430d87",
+    "tsconfig.web.json": "e0a7f182acaa8ddbd1a6287f49a0f337b38217cbc38a1d72d82501c1260a0a26",
+    "package-lock.json": "33e5ccef0ee20d712fa3982252ac77e2c59368c2d1bdb20c4598921285ddf729",
+    "package.json": "9707d6d037073ad55a963693035f7a4ded8f9a98462b5c7029089379574226f4",
+    "tsconfig.json": "9d24fba566823c7a520fd50451c4a788c51147820cc8e8cd560b39b094b29763",
+    "web/app.ts": "d64ade92fb52e9b19e3e2ee860116cdf00c790a271b9c22434fc1a7ff81db89b",
+    "tests/profile.test.ts": "f83960266fbfd3bb8e82f7bd229fc9e797536db11abd0a7d26f884cf5a650cd2",
+    "tests/configure.test.ts": "2066e8b59610dfc4bc0cc54519603d559160f571bb2d4311b3ed03003378af04",
+    "tests/run.test.ts": "934fe050a916ff536dac7cb91a08725b774aec8c931048c37de65fea1441d913",
+    "tests/page.test.ts": "730082fcb778e31c6bcde69d6d9fd080d34b95049f034d31d9c904b822962b5c",
+    "tests/native-smoke.ts": "343397eb29cdf04736dd1eafb6551e7e0fb740dc1f4ca41ffd1384b449ceed0d",
+    "tests/ui.test.ts": "57e49abaaa1aea5055081b68ba1eff768ac3a7537173ae4b028bf5e90e90b7f9",
+    "tests/credentials.test.ts": "a5a06fb560ba14ff5cc9dce189335c962e181f84770c8c839efca5c55887f933",
+    "tests/multi-key.test.ts": "0254329b7885321f572f5eb04aa6ceecfad0cb63db075728ec6685e279b88bd3",
+    "public/index.html": "314e69b7d1f726fe2d6e64c4c9427eaa768a007cf31d066a17948a360f37d7a9",
+    "public/style.css": "13bce7fcecd4fb300e92b207a5fa816666cfcca1c2241014f0a1fb527c5cd894",
+    "public/app.js": "9151eaa9cc7d33d898089455a6807c8f944c47572f30a567ecf79c6226757d9d",
+    "public/favicon.svg": "06231f5902a919e15d3ecc81214836bc2604df4bb781c43a784d9cd3a8b5e41d",
+    "src/cli.ts": "c10e0182207e2f5c6ecfa4eab0863137c92e1b095a3cfbd1f8268c0b71dd5800",
+    "src/page.ts": "dc212d39c594c779f39cfcf62d2157269c17e44e6462b6f2ca1d97d53ca4a52f",
+    "src/profile.ts": "d49789e1ab81e02b9a43b1a5f6f6e6e121a9ee3017ed066b14aec12979517fb2",
+    "src/config.ts": "83c32da0bd12b0ecedc403218501513add3094f8775327e32c01e22dbbb34fb6",
+    "src/server.ts": "9bdd79eddd6afdc69bc792a32e22a329a2462c381726ae89e9868d5d33b37834",
+    "src/run.ts": "fdebf9606458b75758576df9963c1aa55f4b3269723712e90c9d0d9432356324"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "profiles": {
+    "default": [
+      {
+        "manifest": "model.json",
+        "env": "CUSTOM_AGENT_MODEL"
+      },
+      {
+        "manifest": "reasoning-effort.json",
+        "env": "CUSTOM_AGENT_REASONING_EFFORT"
+      },
+      {
+        "manifest": "vision.json",
+        "env": "CUSTOM_AGENT_VISION"
+      }
+    ]
+  }
+}
