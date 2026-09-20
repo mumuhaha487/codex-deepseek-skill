@@ -32,6 +32,6 @@ node "$SKILL_DIR/scripts/credential-ui/src/profile.ts" setup default --confirmed
 node "$SKILL_DIR/scripts/credential-ui/src/profile.ts" run default -- python3 "$SKILL_DIR/scripts/codex_custom_agent.py" setup --model-env --effort-env --vision-env --confirmed --json
 ```
 
-管理程序验证三个值后只写入受管模型目录、`CustomAgent.toml`、角色注册和状态清单。它从当前 `config.toml` 只读获取父模型和父 Provider。
+管理程序验证三个值后写入受管模型目录、`workspace-write` 的 `CustomAgent.toml`、角色注册和状态清单。它从当前 `config.toml` 只读获取父模型和父 Provider。若现有 Agent 文件发生冲突，只有已明确二次确认完整覆盖时才可额外传入 `--replace-agent`；原文件会先进入配置备份。
 
 无法确认模型是否支持图片时选择 `no`。选择 `yes` 仅声明能力，不执行自动探测。

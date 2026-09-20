@@ -51,6 +51,8 @@ except ImportError:  # macOS / Linux
 SKILL_NAME = "deepseek"
 LEGACY_RUNTIME_ID = "codex-custom-subagent"
 ROLE = "CustomAgent"
+AGENT_SANDBOX_MODE = "workspace-write"
+AGENT_EXECUTION_MODE = "isolated_git_worktree"
 DEFAULT_EFFORT = "high"
 REASONING_EFFORTS = {"low", "medium", "high"}
 VISION_VALUES = {"yes", "no"}
@@ -455,23 +457,24 @@ def removed_feature_flags(parsed: dict[str, Any]) -> list[str]:
 
 def expected_agent_text(model: str, provider: str, effort: str, supports_vision: bool) -> str:
     vision_instruction = (
-        "When image inputs are included in your task context, inspect them directly and use the visual evidence in your patch; do not ask the parent agent to pre-analyze them."
+        "When image inputs are included in your task context, inspect them directly and use the visual evidence in your implementation; do not ask the parent agent to pre-analyze them."
         if supports_vision
         else "You are configured for text-only input. Do not claim to inspect images; use visual observations supplied by the parent agent."
     )
     return f'''name = {toml_string(ROLE)}
-description = "Read-only deepseek implementation subagent that returns complete candidate patches for parent-agent review."
+description = "Writable implementation subagent restricted to a parent-managed isolated Git worktree."
 model = {toml_string(model)}
 model_provider = {toml_string(provider)}
 model_reasoning_effort = {toml_string(effort)}
-sandbox_mode = "read-only"
+sandbox_mode = {toml_string(AGENT_SANDBOX_MODE)}
 developer_instructions = """
-You are the read-only deepseek implementation subagent running inside Codex.
+You are the writable implementation subagent running inside Codex.
 
-Work only on the single bounded plan item assigned by the parent agent. Inspect the repository and reason about the implementation, but do not write to the shared workspace.
+Work only on the single bounded plan item assigned by the parent agent and edit code directly in the exact isolated Git worktree path it provides. Before editing, verify that your working directory is that worktree and inspect git status. Never edit the parent's active checkout or any path outside the assigned worktree.
 {vision_instruction}
-Return a complete unified diff or patch that the parent can apply, together with relevant test commands and explicit assumptions. The patch must be self-contained for the assigned plan item.
-When the parent reports an acceptance failure, use its exact file locations, commands, evidence, expected behavior, and direction to return a complete revised replacement patch, not a partial addendum.
+Implement the task in the worktree, run the relevant tests, and return changed file paths, test results, and explicit assumptions. Do not return a replacement patch unless the parent explicitly asks for one.
+The parent owns checkpoints, integration, rollback, and cleanup. Do not run git reset, git clean, git checkout, git restore, git worktree remove, branch deletion, merge, rebase, cherry-pick, or revert. Do not commit unless the parent explicitly asks you to do so.
+When the parent reports an acceptance failure, use its exact file locations, commands, evidence, expected behavior, and direction to revise the files in the same assigned worktree.
 Do not spawn or delegate to any additional subagent.
 """
 '''
@@ -500,7 +503,7 @@ def managed_role_block(paths: Paths) -> str:
     return f'''
 {ROLE_BEGIN}
 [agents.{ROLE}]
-description = "Read-only deepseek implementation subagent that returns complete candidate patches for parent-agent review."
+description = "Writable implementation subagent restricted to a parent-managed isolated Git worktree."
 config_file = {toml_string(str(paths.agent))}
 {ROLE_END}
 '''
@@ -695,6 +698,7 @@ def install(
     selected_model: str,
     effort: str,
     supports_vision: bool,
+    replace_agent: bool = False,
 ) -> dict[str, Any]:
     paths.home.mkdir(parents=True, exist_ok=True)
     config_text = paths.config.read_text(encoding="utf-8") if paths.config.is_file() else ""
@@ -716,11 +720,14 @@ def install(
         managed_agent_unchanged = bool(previous_manifest.get("managed_agent_file")) and (
             sha256_text_file(paths.agent) == previous_manifest.get("agent_sha256")
         )
-        if not managed_agent_unchanged:
+        if not managed_agent_unchanged and not replace_agent:
             raise ManagerError(
                 "conflict",
                 "现有 CustomAgent 文件与目标配置不同。",
-                {"path": str(paths.agent)},
+                {
+                    "path": str(paths.agent),
+                    "resolution": "确认完整覆盖范围后，以 --confirmed --replace-agent 重试。",
+                },
             )
     registered_role_present = bool((unmanaged_parsed.get("agents") or {}).get(ROLE))
 
@@ -822,7 +829,7 @@ def install(
                 catalog_original_backup = str(candidate)
         adopted_existing = registered_role_present or agent_preexisted or catalog_preexisted
         manifest = {
-            "schema_version": 8,
+            "schema_version": 9,
             "installed_at": datetime.now().isoformat(timespec="seconds"),
             "backup": str(backup),
             "previous_model_catalog_json": previous_catalog_value,
@@ -846,6 +853,8 @@ def install(
             "selected_model": selected_model,
             "reasoning_effort": effort,
             "supports_vision": supports_vision,
+            "sandbox_mode": AGENT_SANDBOX_MODE,
+            "execution_mode": AGENT_EXECUTION_MODE,
             "managed_models": list(custom_models),
             "config_sha256": sha256_bytes(new_config.encode()),
             "catalog_sha256": sha256_bytes(catalog_bytes),
@@ -860,7 +869,10 @@ def install(
             "selected_model": selected_model,
             "reasoning_effort": effort,
             "supports_vision": supports_vision,
+            "sandbox_mode": AGENT_SANDBOX_MODE,
+            "execution_mode": AGENT_EXECUTION_MODE,
             "parent_credentials_untouched": True,
+            "replaced_conflicting_agent": replace_agent,
             "legacy_provider_block_removed": provider_marker_present,
             "removed_feature_flags": removed_flags,
             **route,
@@ -884,6 +896,8 @@ def static_status(paths: Paths, codex_bin: str | None = None) -> dict[str, Any]:
         "selected_model": selected_model,
         "reasoning_effort": effort,
         "supports_vision": supports_vision,
+        "sandbox_mode": manifest.get("sandbox_mode", AGENT_SANDBOX_MODE),
+        "execution_mode": manifest.get("execution_mode", AGENT_EXECUTION_MODE),
         "model_selected": bool(selected_model),
         "parent_credentials_untouched": True,
     }
@@ -1008,6 +1022,8 @@ def static_status(paths: Paths, codex_bin: str | None = None) -> dict[str, Any]:
         selected_model=selected_model,
         reasoning_effort=effort,
         supports_vision=supports_vision,
+        sandbox_mode=AGENT_SANDBOX_MODE,
+        execution_mode=AGENT_EXECUTION_MODE,
         parent_credentials_untouched=True,
         **route,
         checks=checks,
@@ -1178,32 +1194,69 @@ def native_test(paths: Paths, codex_bin: str, selected_model: str, effort: str) 
     route = native_route_details(paths)
     env = dict(os.environ)
     env["CODEX_HOME"] = str(paths.home)
-    prompt = (
-        'Use the native spawn_agent tool exactly once. Set agent_type to CustomAgent and fork_turns to none. '
-        'Give it this task: Reply exactly NATIVE_CUSTOM_AGENT_OK. '
-        "Then wait for that subagent and return only its final response."
-    )
-    proc = subprocess.run(
-        [
-            codex_bin,
-            "exec",
-            "--skip-git-repo-check",
-            "--json",
-            "-s",
-            "read-only",
-            "-C",
-            str(paths.home),
-            "-m",
-            parent_model,
-            prompt,
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        env=env,
-        timeout=300,
-    )
+    with tempfile.TemporaryDirectory(prefix="codex-custom-agent-write-test-") as directory:
+        repository = Path(directory) / "repo"
+        repository.mkdir()
+        subprocess.run(["git", "-C", str(repository), "init", "-q"], check=True)
+        subprocess.run(["git", "-C", str(repository), "config", "user.name", "Codex Test"], check=True)
+        subprocess.run(["git", "-C", str(repository), "config", "user.email", "codex-test@localhost"], check=True)
+        (repository / "baseline.txt").write_text("baseline\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repository), "add", "baseline.txt"], check=True)
+        subprocess.run(["git", "-C", str(repository), "commit", "-q", "-m", "baseline"], check=True)
+        prompt = (
+            'Use the native spawn_agent tool exactly once. Set agent_type to CustomAgent and fork_turns to none. '
+            'Give it this task: In the current isolated Git worktree, create a file named '
+            'native-custom-agent-write.txt containing exactly NATIVE_CUSTOM_AGENT_WRITE_OK followed by a newline. '
+            'Do not modify any other file and do not commit. When finished, reply exactly NATIVE_CUSTOM_AGENT_OK. '
+            "Then wait for that subagent and return only its final response."
+        )
+        proc = subprocess.run(
+            [
+                codex_bin,
+                "exec",
+                "--json",
+                "-s",
+                AGENT_SANDBOX_MODE,
+                "-C",
+                str(repository),
+                "-m",
+                parent_model,
+                prompt,
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=300,
+        )
+        marker = repository / "native-custom-agent-write.txt"
+        status_after_write = subprocess.run(
+            ["git", "-C", str(repository), "status", "--porcelain=v1", "--untracked-files=all"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        content_verified = False
+        try:
+            content_verified = marker.read_bytes() in {
+                b"NATIVE_CUSTOM_AGENT_WRITE_OK\n",
+                b"NATIVE_CUSTOM_AGENT_WRITE_OK\r\n",
+            }
+        except PermissionError:
+            pass
+        try:
+            marker_size = marker.stat().st_size
+        except (FileNotFoundError, PermissionError, OSError):
+            marker_size = -1
+        write_verified = (
+            marker.is_file()
+            and marker_size in {29, 30}
+            and status_after_write.returncode == 0
+            and status_after_write.stdout.strip() == "?? native-custom-agent-write.txt"
+        )
     if proc.returncode != 0:
         raise ManagerError(
             "native_test_failed",
@@ -1234,7 +1287,7 @@ def native_test(paths: Paths, codex_bin: str, selected_model: str, effort: str) 
                 "expected": expected,
             },
         )
-    if len(child_ids) != 1 or child_message != "NATIVE_CUSTOM_AGENT_OK" or metadata != expected:
+    if len(child_ids) != 1 or child_message != "NATIVE_CUSTOM_AGENT_OK" or metadata != expected or not write_verified:
         raise ManagerError(
             "native_route_mismatch",
             "原生子 Agent 路由验收证据不完整或不符合自定义配置。",
@@ -1245,12 +1298,15 @@ def native_test(paths: Paths, codex_bin: str, selected_model: str, effort: str) 
                 "child_message": child_message,
                 "metadata": metadata,
                 "expected": expected,
+                "write_verified": write_verified,
+                "content_verified": content_verified,
             },
         )
     return {
         "desktop_fresh_session_native": True,
         "child_id": child_id,
         "configured_provider": route["expected_provider"],
+        "writable_child_verified": write_verified,
         **route,
         **expected,
     }
@@ -1300,6 +1356,7 @@ def setup(
     model_env: bool = False,
     effort_env: bool = False,
     vision_env: bool = False,
+    replace_agent: bool = False,
 ) -> dict[str, Any]:
     if model_env:
         requested_model = os.environ.get("CUSTOM_AGENT_MODEL", "").strip()
@@ -1324,7 +1381,14 @@ def setup(
 
     install_result: dict[str, Any] | None = None
     try:
-        install_result = install(paths, codex_bin, selected_model, effort, supports_vision)
+        install_result = install(
+            paths,
+            codex_bin,
+            selected_model,
+            effort,
+            supports_vision,
+            replace_agent=replace_agent,
+        )
         if skip_live_test:
             return result(
                 "configured",
@@ -1519,6 +1583,11 @@ def main() -> int:
     vision_input.add_argument("--vision-env", action="store_true", help="仅从可信包装器注入的 CUSTOM_AGENT_VISION 读取识图能力")
     parser.add_argument("--skip-live-test", action="store_true")
     parser.add_argument(
+        "--replace-agent",
+        action="store_true",
+        help="仅在二次确认已明确覆盖现有 CustomAgent.toml 时允许替换冲突角色文件",
+    )
+    parser.add_argument(
         "--confirmed",
         action="store_true",
         help="仅在已展示持久变更影响并于后续独立消息收到精确回复“已确认”后使用",
@@ -1527,6 +1596,8 @@ def main() -> int:
     args = parser.parse_args()
     paths = resolve_paths(args.codex_home)
     try:
+        if args.replace_agent and args.command not in {"setup", "repair"}:
+            raise ManagerError("invalid_option", "--replace-agent 只能与 setup 或 repair 一起使用。")
         if args.command in {"setup", "repair", "disable", "uninstall"} and not args.confirmed:
             raise ManagerError(
                 "confirmation_required",
@@ -1550,6 +1621,7 @@ def main() -> int:
                         model_env=args.model_env,
                         effort_env=args.effort_env,
                         vision_env=args.vision_env,
+                        replace_agent=args.replace_agent,
                     )
                 elif args.command == "test":
                     payload = run_tests(paths, codex_bin or "")

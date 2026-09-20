@@ -14,6 +14,8 @@
 - 合并模型目录：`$CODEX_HOME/models-with-custom-agent.json`
 - Agent 文件：`$CODEX_HOME/agents/CustomAgent.toml`
 - 状态与备份：`$CODEX_HOME/codex-custom-subagent/`
+- 项目任务记录：Git 公共目录下的 `codex-custom-agent/tasks/`
+- 项目隔离 worktree：项目根目录下临时的 `.codex-worktrees/<task-id>/`
 
 状态目录沿用旧名称只为兼容历史备份。公开 Skill 名称是 `deepseek`。
 
@@ -46,4 +48,6 @@
 spawn_agent(agent_type="CustomAgent", fork_turns="none", ...)
 ```
 
-实时验收检查子 Agent 口令和 `$CODEX_HOME/state_*.sqlite` 的 `threads` 元数据：父 Provider、精确模型、所选思考强度和 `CustomAgent` 角色。子 Agent 自述或 UI 标签不能替代数据库证据。
+`CustomAgent.toml` 固定使用 `sandbox_mode = "workspace-write"`，但日常写入只能发生在 `task_worktree.py start` 创建的隔离 worktree。主工作区不干净时管理器拒绝启动可写任务，不会自动 stash、提交、reset 或清理用户修改。
+
+实时验收检查子 Agent 口令、临时 Git 仓库中的实际写入和 `$CODEX_HOME/state_*.sqlite` 的 `threads` 元数据：父 Provider、精确模型、所选思考强度和 `CustomAgent` 角色。子 Agent 自述或 UI 标签不能替代这些证据。

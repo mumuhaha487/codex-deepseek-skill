@@ -1,6 +1,6 @@
 # deepseek
 
-把父 Provider 已经可以访问的模型配置成 Codex 原生只读 `CustomAgent`。配置页只包含三个字段：
+把父 Provider 已经可以访问的模型配置成 Codex 原生可写 `CustomAgent`。子智能体在主 Agent 管理的隔离 Git worktree 中直接修改代码；主 Agent 负责功能验收、自动整合、回退和清理。配置页只包含三个字段：
 
 - 子代理模型
 - 思考强度：`low`、`medium`、`high`
@@ -16,7 +16,7 @@
 
 创建或修改 `CustomAgent.toml`、模型目录、角色注册或设置 profile 前，Codex 必须先展示当前配置、目标配置、持久影响、修改范围以及能力/费用风险，并等待用户在下一条独立消息中只回复 `已确认`。单次请求中的“已确认”无效。没有第二次确认时，脚本也会拒绝 `setup`、`repair`、`disable` 和 `uninstall`。
 
-每个独立派发任务分别统计子 Agent 执行失败、主 Agent 纠偏和审核拒绝次数。任一计数达到 5 后，不再请求第 6 次子 Agent 修订，由主 Agent 直接编写和验证该任务；重新措辞同一目标不会重置计数，只有进入范围和验收目标不同的新任务才会归零并重新优先使用 `CustomAgent`。
+每个可写任务在修改前创建独立 worktree 和任务记录，每轮修改形成 Git 检查点。功能验收通过后，最终代码自动压缩为单个提交并整合到主工作区，复测成功后删除全部临时 worktree、分支、检查点和记录。整合后失败会自动 revert；任一失败计数达到 5 时丢弃隔离修改并由主 Agent 接管，不发起第 6 次子智能体修订。
 
 ## 识图
 
@@ -36,7 +36,7 @@
 只有以下证据全部一致才报告成功：
 
 1. 父 Provider 直连返回 `CUSTOM_AGENT_DIRECT_OK`。
-2. 原生子代理返回 `NATIVE_CUSTOM_AGENT_OK`。
+2. 原生子代理返回 `NATIVE_CUSTOM_AGENT_OK` 并在临时 Git 仓库成功写入验收文件。
 3. 子线程数据库记录为父 Provider、精确子模型、所选思考强度和 `CustomAgent`。
 4. 模型目录中的输入模态与识图开关一致。
 

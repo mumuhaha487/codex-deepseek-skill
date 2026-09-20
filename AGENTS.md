@@ -18,9 +18,10 @@ node <skill-dir>/scripts/credential-ui/src/profile.ts run default -- <python3> <
 
 10. 若尚未完成实时验收，运行 `test --json`。如需 `repair`，必须先重新说明具体修复写入范围并等待新的 `已确认`，然后传入 `--confirmed`。不得手工改受管 Agent 文件或模型目录。
 11. 不请求、不读取、不修改 API URL、API Key、父 Provider、父 Provider 认证或 `auth.json`。旧版带标记的独立 Provider 只能由管理脚本在升级时移除。
-12. 检查模型、思考强度、识图能力、父 Provider、`CustomAgent` 角色和子线程数据库元数据。识图开启时，图片应直接作为子代理输入；关闭时由主 Agent 提供视觉观察文本。
+12. 检查模型、思考强度、识图能力、`workspace-write` 沙箱、父 Provider、`CustomAgent` 角色、子线程数据库元数据，以及临时 Git 仓库中的原生写入验收。识图开启时，图片应直接作为子代理输入；关闭时由主 Agent 提供视觉观察文本。
 13. 安装角色不会自动替换标准 worker。只有用户明确要求默认使用 `CustomAgent` 时，才按 `references/troubleshooting.md` 配置全局或项目 `AGENTS.md`；这也是持久化变更，必须先说明范围并等待独立的 `已确认`。失败时不得静默回退到其他子 Agent。
-14. 每个独立派发任务分别从 `0` 记录 `attempt_failures`、`parent_redirects` 和 `review_rejections`。子 Agent 启动/执行失败或无法交付可用完整补丁时增加前者；主 Agent 因跑偏、过度思考或忽略要求而介入纠偏时增加中者；候选补丁未通过审核、应用或测试时增加后者。一次循环可以增加多个计数。
-15. 任一计数达到 `5`（包括第 5 次）后，停止该任务的子智能体修订，不发起第 6 次调用或第 6 版补丁，由主 Agent 直接编写、测试并完成。直接接管不是切换到其他 Agent，也不修改持久配置。重新措辞、重复派发或微调同一验收目标不能重置；只有开始范围和验收目标明确不同的新任务时才全部归零，并再次优先使用 `CustomAgent`。
+14. 可写任务必须先用 `scripts/task_worktree.py start` 建立隔离 worktree、任务记录和基线。把绝对 worktree 路径与允许写入范围交给 `CustomAgent`，由其直接修改并测试；不得让子 Agent 写主检出。每轮用 `checkpoint` 保存修改与证据。
+15. 主 Agent 以功能验收和写入范围为主。通过后用 `integrate` 自动整合为单个提交并在主工作区复测；成功用 `finalize` 清理所有临时 worktree、分支、检查点和记录，失败用 `rollback-integrated` 回退本次整合并清理。
+16. 每个任务分别记录 `attempt_failures`、`parent_redirects` 和 `review_rejections`。任一计数达到 `5` 后，不发起第 6 次调用；先用 `abort` 丢弃隔离修改并清理，再由主 Agent 直接完成。改写同一目标不能重置，只有新任务才归零并重新优先使用 `CustomAgent`。
 
 任何时候都不得把认证内容写入仓库、命令参数、日志或最终回复。

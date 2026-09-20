@@ -1,6 +1,6 @@
 # 原生子 Agent 路由故障排查
 
-以下结论在 `2026-09-20` 的 Codex 桌面运行环境中验证；后续版本仍以 `test --json` 和子线程数据库元数据为准。
+以下结论在 `2026-09-20` 的 Codex 桌面运行环境中验证；后续版本仍以 `test --json`、实际写入验收和子线程数据库元数据为准。
 
 ## 为什么不能设置独立 URL 和 Key
 
@@ -25,6 +25,8 @@
 - When the user explicitly requests a subagent or delegation, call `spawn_agent` with `agent_type = "CustomAgent"` and `fork_turns = "none"`.
 - Do not select a model or reasoning effort directly; the `CustomAgent` role owns them.
 - Do not fall back to `worker` or another standard subagent unless the user explicitly authorizes it.
+- Before delegation, create a managed isolated Git worktree with `scripts/task_worktree.py start`. Give its absolute path and approved write scope to `CustomAgent`; never let it write the parent checkout.
+- Checkpoint every attempt. Integrate and re-test accepted work, then finalize cleanup; abort isolated changes at the fifth failure before the parent agent takes over.
 - For each distinct delegated task, track CustomAgent attempt failures, parent redirects, and review rejections from zero. If any count reaches five, do not request a sixth revision; the parent agent must implement and verify that task directly.
 - Rephrasing or retrying the same acceptance goal does not reset those counts. Reset all three only for a genuinely new task, which should again start with `CustomAgent`.
 ```
@@ -54,6 +56,7 @@
 2. 原生子 Agent 返回 `NATIVE_CUSTOM_AGENT_OK`。
 3. 子线程数据库包含父 Provider、目标模型、所选思考强度和 `CustomAgent`。
 4. 模型目录的输入模态与识图开关一致。
+5. 子 Agent 在临时 Git 仓库写入指定验收文件，主工作区未被直接修改。
 
 ## 常见故障
 
@@ -64,6 +67,8 @@
 | 子任务仍是父模型或 `worker` | 调用没有指定 `CustomAgent` | 添加默认路由规则，在新任务重试 |
 | 思考强度仍是旧值 | 旧 Agent 文件或旧任务缓存 | 运行 `repair`，重启并检查数据库元数据 |
 | 识图开启但子 Agent 收不到图片 | 委派没有附带图片输入，或上游模型不支持 | 附带 `image`/`local_image`，并核实模型能力 |
+| 子 Agent 仍只返回补丁 | Agent 文件仍是 `read-only` 或旧任务缓存 | 二次确认后运行 `repair --confirmed --replace-agent`，完全重启并新建任务 |
+| 无法创建隔离任务 | 主工作区不干净或任务 ID/分支冲突 | 保留用户修改，不自动 stash/reset；清理冲突或完成当前修改后重试 |
 
 ## 恢复
 

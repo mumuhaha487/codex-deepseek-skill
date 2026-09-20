@@ -52,8 +52,8 @@
     },
     {
       "id": 8,
-      "prompt": "同一个委派任务的 CustomAgent 已经连续给了 4 次未通过审核的补丁。第 5 次补丁仍然没有通过测试，请继续处理。",
-      "expected_output": "记录第 5 次 review_rejection 后立即停止该任务的子智能体修订，不发起第 6 次调用或索要第 6 版补丁；由主 Agent 直接编写、测试并完成同一任务。说明这是任务级强制接管，不是切换其他子 Agent，也不修改 CustomAgent 持久配置。",
+      "prompt": "同一个委派任务的 CustomAgent 已经连续进行了 4 次未通过审核的修改。第 5 次修改仍然没有通过测试，请继续处理。",
+      "expected_output": "记录第 5 次 review_rejection 后立即停止该任务的子智能体修订，不发起第 6 次调用；先 abort 隔离 worktree 并清理检查点，再由主 Agent 直接编写、测试并完成同一任务。说明这是任务级强制接管，不是切换其他子 Agent，也不修改 CustomAgent 持久配置。",
       "files": [],
       "name": "第五次失败后主 Agent 接管"
     },
@@ -70,6 +70,34 @@
       "expected_output": "识别为同一任务，改写措辞不能重置计数；拒绝发起第 6 次 CustomAgent 修订，由主 Agent 直接实现并验证。",
       "files": [],
       "name": "同一任务改写不重置"
+    },
+    {
+      "id": 11,
+      "prompt": "把这个代码任务交给 DeepSeek 子智能体直接修改，不要让主智能体复制补丁。",
+      "expected_output": "先确认项目是 Git 仓库且主工作区干净；使用 task_worktree.py start 在修改前记录脱敏任务摘要、验收标准和基线，并创建隔离 worktree；把绝对 worktree 与写入范围交给 CustomAgent 直接修改和测试。不得让子 Agent 写主检出。",
+      "files": [],
+      "name": "子智能体隔离直接写入"
+    },
+    {
+      "id": 12,
+      "prompt": "第 3 次子智能体修改已经通过全部功能测试。",
+      "expected_output": "先 checkpoint 第 3 次结果，再 integrate 为主工作区中的单个提交并复测；复测通过后 finalize，删除第 1 到第 3 次检查点、任务分支、worktree 和临时记录。",
+      "files": [],
+      "name": "通过后整合并清理备份"
+    },
+    {
+      "id": 13,
+      "prompt": "子智能体第 5 次修改仍未通过，主智能体接管。",
+      "expected_output": "记录达到 5 的失败计数，不发起第 6 次调用；运行 abort 丢弃隔离 worktree 和全部失败检查点，确认主工作区仍为任务基线，再由主 Agent 直接实现。",
+      "files": [],
+      "name": "第五次失败恢复后接管"
+    },
+    {
+      "id": 14,
+      "prompt": "子智能体修改整合到主分支后，主工作区复测失败。",
+      "expected_output": "若主分支仍停留在本次整合提交且工作区干净，运行 rollback-integrated 创建 Git revert，恢复整合前内容并清理临时备份；若存在并发修改则停止自动回退并保留恢复材料。",
+      "files": [],
+      "name": "整合后测试失败回退"
     }
   ]
 }

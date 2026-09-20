@@ -53,7 +53,14 @@ class SetupConfigurationTests(unittest.TestCase):
             )
 
         self.assertEqual(result["status"], "configured")
-        install.assert_called_once_with(self.paths, "unused-codex", "vendor-model", "medium", True)
+        install.assert_called_once_with(
+            self.paths,
+            "unused-codex",
+            "vendor-model",
+            "medium",
+            True,
+            replace_agent=False,
+        )
 
     def test_old_manifest_defaults_to_high_and_text_only(self) -> None:
         self.paths.state_dir.mkdir(parents=True)
@@ -63,7 +70,14 @@ class SetupConfigurationTests(unittest.TestCase):
         ):
             MANAGER.setup(self.paths, "unused-codex", True, None, None, None)
 
-        install.assert_called_once_with(self.paths, "unused-codex", "vendor-model", "high", False)
+        install.assert_called_once_with(
+            self.paths,
+            "unused-codex",
+            "vendor-model",
+            "high",
+            False,
+            replace_agent=False,
+        )
 
     def test_empty_vision_environment_is_rejected(self) -> None:
         with patch.dict(os.environ, {"CUSTOM_AGENT_VISION": ""}):
@@ -92,6 +106,9 @@ class ModelCatalogTests(unittest.TestCase):
         text = MANAGER.expected_agent_text("child", "parent-provider", "low", True)
         self.assertIn('model_provider = "parent-provider"', text)
         self.assertIn('model_reasoning_effort = "low"', text)
+        self.assertIn('sandbox_mode = "workspace-write"', text)
+        self.assertIn("edit code directly", text)
+        self.assertIn("parent owns checkpoints", text.lower())
         self.assertIn("inspect them directly", text)
 
     def test_text_only_agent_does_not_claim_image_access(self) -> None:
@@ -138,6 +155,35 @@ class InstallIsolationTests(unittest.TestCase):
         manifest = json.loads(self.paths.manifest.read_text(encoding="utf-8"))
         self.assertEqual(manifest["reasoning_effort"], "medium")
         self.assertTrue(manifest["supports_vision"])
+        self.assertEqual(manifest["sandbox_mode"], "workspace-write")
+        self.assertEqual(manifest["execution_mode"], "isolated_git_worktree")
+
+    def test_conflicting_agent_requires_explicit_replacement(self) -> None:
+        self.paths.config.write_text(
+            'model = "parent-model"\nmodel_provider = "parent-provider"\n',
+            encoding="utf-8",
+        )
+        self.paths.agent.parent.mkdir(parents=True)
+        self.paths.agent.write_text("user managed agent\n", encoding="utf-8")
+        catalog = {"models": [{"slug": "parent-model", "display_name": "Parent"}]}
+
+        with patch.object(MANAGER, "load_base_catalog", return_value=catalog):
+            with self.assertRaises(MANAGER.ManagerError) as caught:
+                MANAGER.install(self.paths, "unused-codex", "child-model", "high", False)
+
+        self.assertEqual(caught.exception.code, "conflict")
+        with patch.object(MANAGER, "load_base_catalog", return_value=catalog):
+            outcome = MANAGER.install(
+                self.paths,
+                "unused-codex",
+                "child-model",
+                "high",
+                False,
+                replace_agent=True,
+            )
+
+        self.assertTrue(outcome["replaced_conflicting_agent"])
+        self.assertIn('sandbox_mode = "workspace-write"', self.paths.agent.read_text(encoding="utf-8"))
 
 
 class StdioEncodingTests(unittest.TestCase):
